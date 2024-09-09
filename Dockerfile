@@ -1,74 +1,50 @@
-# Start with an official Ubuntu base image
+# Start with an Ubuntu base image
 FROM ubuntu:latest
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
-ENV GOROOT=/usr/local/go
-ENV GOPATH=/root/go
-ENV PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+ENV release_os="linux"
+ENV release_arch="amd64"
 
-# Update and install necessary packages including Docker prerequisites
-RUN apt-get update -q && \
-    apt-get install -y wget git nano apt-transport-https ca-certificates curl software-properties-common ufw && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# Install necessary packages and enable firewall rules
+RUN apt-get -q update && \
+    apt-get install -y sudo ufw curl && \
+    sudo ufw enable && \
+    sudo ufw allow 22 && \
+    sudo ufw allow 8336 && \
+    sudo ufw allow 443 && \
+    sudo ufw status
 
-# Install Docker from the official Docker repository
-RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
-    apt-get update -q && \
-    apt-get install -y docker-ce && \
-    systemctl enable docker && \
-    systemctl start docker
+# Create directories and navigate into them
+RUN mkdir /ceremonyclient && cd /ceremonyclient && \
+    mkdir node && cd node && \
+    echo "3. Creating node folder, and downloading all required node-related files (binaries, .dgst and *.sig files)..." && \
+    files=$(curl https://releases.quilibrium.com/release | grep $release_os-$release_arch) && \
+    for file in $files; do \
+        version=$(echo "$file" | cut -d '-' -f 2); \
+        if ! test -f "./$file"; then \
+            curl "https://releases.quilibrium.com/$file" -o "$file"; \
+            echo "... downloaded $file"; \
+        fi; \
+    done && \
+    chmod +x ./node-$version-$release_os-$release_arch && \
+    cd .. && \
+    echo "... download of required node files done" && \
+    echo "4. creating client folder, and downloading qclient binary..." && \
+    mkdir client && cd client && \
+    echo "... client folder created" && \
+    files=$(curl https://releases.quilibrium.com/qclient-release | grep $release_os-$release_arch) && \
+    for file in $files; do \
+        qclient_version=$(echo "$file" | cut -d '-' -f 2); \
+        if ! test -f "./$file"; then \
+            curl "https://releases.quilibrium.com/$file" -o "$file"; \
+            echo "... downloaded $file"; \
+        fi; \
+    done && \
+    mv qclient-$qclient_version-$release_os-$release_arch qclient && \
+    chmod +x ./qclient && \
+    cd .. && \
+    echo "... download of required qclient files done"
 
-# Verify Git installation
-RUN git --version
-
-# Install Go
-RUN wget https://go.dev/dl/go1.22.4.linux-amd64.tar.gz && \
-    tar -xvf go1.22.4.linux-amd64.tar.gz && \
-    mv go /usr/local && \
-    rm go1.22.4.linux-amd64.tar.gz
-
-# Apply the environment variables for Go
-RUN echo "export GOROOT=/usr/local/go" >> ~/.bashrc && \
-    echo "export GOPATH=/root/go" >> ~/.bashrc && \
-    echo "export PATH=$GOPATH/bin:$GOROOT/bin:$PATH" >> ~/.bashrc && \
-    source ~/.bashrc
-
-# Verify Go installation
-RUN go version
-
-# Install gRPCurl using Go
-RUN go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
-
-# Clone the latest version of the ceremony client
-RUN git clone https://github.com/QuilibriumNetwork/ceremonyclient.git ~/ceremonyclient
-
-# Set the working directory to the ceremony client folder
-WORKDIR ~/ceremonyclient
-
-# Pull the latest updates and checkout the release branch
-RUN git pull && git checkout release
-
-# Build the Docker image for the ceremony client
-RUN docker build --build-arg GIT_COMMIT=$(git log -1 --format=%h) -t quilibrium -t quilibrium:latest .
-
-# Configure the Node Network Firewall using UFW
-RUN ufw enable && \
-    ufw allow 22 && \
-    ufw allow 8336 && \
-    ufw allow 443 && \
-    ufw status
-
-# Modify the config.yml for gRPC and Stats Collection
-RUN cd ~/ceremonyclient/node && \
-    sed -i 's|listenGrpcMultiaddr: ""|listenGrpcMultiaddr: "/ip4/127.0.0.1/tcp/8337"|' .config/config.yml && \
-    sed -i 's|listenRESTMultiaddr: ""|listenRESTMultiaddr: "/ip4/127.0.0.1/tcp/8338"|' .config/config.yml && \
-    sed -i '/engine:/a \  statsMultiaddr: "/dns/stats.quilibrium.com/tcp/443"' .config/config.yml
-
-# Run the Quilibrium node using Docker Compose
-RUN docker compose up -d
-
-# Keep the terminal alive
+# Default command to keep the container running
 CMD ["tail", "-f", "/dev/null"]
