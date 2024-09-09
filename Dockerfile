@@ -1,49 +1,38 @@
-# Use the official Ubuntu base image
+# Start with an official Ubuntu base image
 FROM ubuntu:latest
 
-# Set environment variables to avoid interactive prompts during package installations
+# Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/root/go
+ENV PATH=$GOPATH/bin:$GOROOT/bin:$PATH
 
-# Update and install the required prerequisites
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    curl \
-    git \
-    python3 \
-    python3-pip \
-    openjdk-11-jdk \
-    unzip \
-    && rm -rf /var/lib/apt/lists/*
+# Update and install necessary packages
+RUN apt-get update -q && \
+    apt-get install -y wget git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Rust using the official installer
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# Verify Git installation
+RUN git --version
 
-# Set environment variables for Rust
-ENV PATH="/root/.cargo/bin:${PATH}"
+# Install Go
+RUN wget https://go.dev/dl/go1.22.4.linux-amd64.tar.gz && \
+    tar -xvf go1.22.4.linux-amd64.tar.gz && \
+    mv go /usr/local && \
+    rm go1.22.4.linux-amd64.tar.gz
 
-# Install Docker
-RUN curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh && rm get-docker.sh
+# Apply the environment variables for Go
+RUN echo "export GOROOT=/usr/local/go" >> ~/.bashrc && \
+    echo "export GOPATH=/root/go" >> ~/.bashrc && \
+    echo "export PATH=$GOPATH/bin:$GOROOT/bin:$PATH" >> ~/.bashrc && \
+    source ~/.bashrc
 
-# Install the Python packages globally
-RUN pip3 install \
-    poetry \
-    pipenv \
-    virtualenv
+# Verify Go installation
+RUN go version
 
-# Install Node.js and npm
-RUN curl -fsSL https://deb.nodesource.com/setup_14.x | bash - \
-    && apt-get install -y nodejs
+# Install gRPCurl using Go
+RUN go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
-# Clean up the package lists to reduce the image size
-RUN apt-get clean
-
-# Optionally, add a startup script or additional commands here
-# COPY ./onstart.sh /root/onstart.sh
-# RUN chmod +x /root/onstart.sh
-# ENTRYPOINT ["/root/onstart.sh"]
-
-# Set the working directory
-WORKDIR /root
-
-# Command to keep the terminal open and alive indefinitely
-CMD ["bash", "-c", "while true; do sleep infinity; done"]
+# Default command
+CMD ["bash"]
