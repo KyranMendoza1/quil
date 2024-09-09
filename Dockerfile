@@ -9,7 +9,7 @@ ENV PATH=$GOPATH/bin:$GOROOT/bin:$PATH
 
 # Update and install necessary packages including Docker prerequisites
 RUN apt-get update -q && \
-    apt-get install -y wget git nano apt-transport-https ca-certificates curl software-properties-common && \
+    apt-get install -y wget git nano apt-transport-https ca-certificates curl software-properties-common ufw && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -53,6 +53,19 @@ RUN git pull && git checkout release
 
 # Build the Docker image for the ceremony client
 RUN docker build --build-arg GIT_COMMIT=$(git log -1 --format=%h) -t quilibrium -t quilibrium:latest .
+
+# Configure the Node Network Firewall using UFW
+RUN ufw enable && \
+    ufw allow 22 && \
+    ufw allow 8336 && \
+    ufw allow 443 && \
+    ufw status
+
+# Modify the config.yml for gRPC and Stats Collection
+RUN cd ~/ceremonyclient/node && \
+    sed -i 's|listenGrpcMultiaddr: ""|listenGrpcMultiaddr: "/ip4/127.0.0.1/tcp/8337"|' .config/config.yml && \
+    sed -i 's|listenRESTMultiaddr: ""|listenRESTMultiaddr: "/ip4/127.0.0.1/tcp/8338"|' .config/config.yml && \
+    sed -i '/engine:/a \  statsMultiaddr: "/dns/stats.quilibrium.com/tcp/443"' .config/config.yml
 
 # Run the Quilibrium node using Docker Compose
 RUN docker compose up -d
