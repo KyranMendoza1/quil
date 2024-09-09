@@ -34,5 +34,17 @@ RUN go version
 # Install gRPCurl using Go
 RUN go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
-# Default command
-CMD ["bash"]
+# Clone the latest version of the ceremony client
+RUN git clone https://github.com/QuilibriumNetwork/ceremonyclient.git ~/ceremonyclient
+
+# Set the working directory to the ceremony client node folder
+WORKDIR ~/ceremonyclient/node
+
+# Checkout the release branch
+RUN git checkout release
+
+# Run the release_autorun.sh script
+RUN ./release_autorun.sh
+
+# Keep the terminal alive
+CMD ["tail", "-f", "/dev/null"]
