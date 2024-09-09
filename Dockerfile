@@ -7,11 +7,19 @@ ENV GOROOT=/usr/local/go
 ENV GOPATH=/root/go
 ENV PATH=$GOPATH/bin:$GOROOT/bin:$PATH
 
-# Update and install necessary packages
+# Update and install necessary packages including Docker prerequisites
 RUN apt-get update -q && \
-    apt-get install -y wget git nano systemd && \
+    apt-get install -y wget git nano apt-transport-https ca-certificates curl software-properties-common && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Install Docker from the official Docker repository
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt-get update -q && \
+    apt-get install -y docker-ce && \
+    systemctl enable docker && \
+    systemctl start docker
 
 # Verify Git installation
 RUN git --version
@@ -43,24 +51,11 @@ WORKDIR ~/ceremonyclient
 # Pull the latest updates and checkout the release branch
 RUN git pull && git checkout release
 
-# Set up systemd service for the Ceremony Client
-RUN echo "[Unit]\n\
-Description=Ceremony Client Go App Service\n\n\
-[Service]\n\
-Type=simple\n\
-Restart=always\n\
-RestartSec=5s\n\
-WorkingDirectory=/root/ceremonyclient/node\n\
-Environment=GOEXPERIMENT=arenas\n\
-ExecStart=/root/ceremonyclient/node/release_autorun.sh\n\n\
-[Install]\n\
-WantedBy=multi-user.target" > /lib/systemd/system/ceremonyclient.service
+# Build the Docker image for the ceremony client
+RUN docker build --build-arg GIT_COMMIT=$(git log -1 --format=%h) -t quilibrium -t quilibrium:latest .
 
-# Enable the service to start on boot
-RUN systemctl enable ceremonyclient.service
-
-# Start the Ceremony Client service
-RUN service ceremonyclient start
+# Run the Quilibrium node using Docker Compose
+RUN docker compose up -d
 
 # Keep the terminal alive
 CMD ["tail", "-f", "/dev/null"]
