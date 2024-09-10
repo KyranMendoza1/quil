@@ -1,30 +1,22 @@
 #!/bin/bash
-
-# Update package lists and install necessary packages
+# Update the package list and install necessary packages
 apt update
-apt install -y curl wget tmux
+apt install -y curl tmux
 
-# Create or attach to a tmux session named quil-session
-tmux new-session -d -s quil-session
+# Start a new tmux session named 'ceremony-session' and run the commands inside it
+tmux new-session -d -s ceremony-session bash -c '
+    # Navigate to the home directory
+    cd ~
 
-# Run the commands inside the tmux session
-tmux send-keys -t quil-session 'apt update' C-m
-tmux send-keys -t quil-session 'apt install -y curl wget' C-m
+    # Clone the repository
+    git clone https://github.com/QuilibriumNetwork/ceremonyclient.git
 
-# Navigate to the home directory
-tmux send-keys -t quil-session 'cd ~' C-m
+    # Navigate to the node directory within the cloned repository
+    cd ~/ceremonyclient/node
 
-# Clone the ceremonyclient repository
-tmux send-keys -t quil-session 'git clone https://github.com/QuilibriumNetwork/ceremonyclient.git' C-m
+    # Check out the release branch
+    git checkout release
 
-# Change to the node directory within the cloned repository
-tmux send-keys -t quil-session 'cd ~/ceremonyclient/node' C-m
-
-# Checkout the release branch
-tmux send-keys -t quil-session 'git checkout release' C-m
-
-# Execute the release_autorun.sh script
-tmux send-keys -t quil-session './release_autorun.sh' C-m
-
-# Attach to the tmux session
-tmux attach-session -t quil-session
+    # Run the release autorun script
+    ./release_autorun.sh
+'
