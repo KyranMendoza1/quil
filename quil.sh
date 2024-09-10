@@ -1,11 +1,15 @@
 #!/bin/bash
 
+# Update package lists and install necessary packages
+apt update
+apt install -y curl wget tmux
+
 # Create or attach to a tmux session named quil-session
 tmux new-session -d -s quil-session
 
 # Run the commands inside the tmux session
 tmux send-keys -t quil-session 'apt update' C-m
-tmux send-keys -t quil-session 'apt install -y curl wget tmux' C-m
+tmux send-keys -t quil-session 'apt install -y curl wget' C-m
 
 # Navigate to the home directory
 tmux send-keys -t quil-session 'cd ~' C-m
